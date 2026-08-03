@@ -84,7 +84,7 @@ After evaluating multiple models, the **Linear SVM** classifier was selected for
 ### Local Environment Setup
 1. **Clone the repository:**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/g-shravana-manikanta/Twitter-Sentiment-Analysis-Platform.git
    cd twitter-sentiment-analysis
    ```
 
