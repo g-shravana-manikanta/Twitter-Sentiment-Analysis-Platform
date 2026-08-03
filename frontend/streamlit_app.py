@@ -33,7 +33,7 @@ def clear_interface():
 # Dynamic health check on load
 if st.session_state.backend_status == "Not Checked":
     try:
-        r = requests.get(f"{BACKEND_URL}/health", timeout=1.5)
+        r = requests.get(f"{BACKEND_URL}/health", timeout=5.0)
         st.session_state.backend_status = "Online" if r.status_code == 200 else "Offline"
     except Exception:
         st.session_state.backend_status = "Offline"
@@ -773,6 +773,10 @@ st.markdown(
 # Anchor element for navigation
 st.markdown("<div id='analyzer' style='height: 40px;'></div>", unsafe_allow_html=True)
 
+# Warn user if backend API is offline (e.g. sleeping on Render Free tier)
+if st.session_state.backend_status == "Offline":
+    st.warning("⚡ **Connecting to Backend API...** The backend is currently offline or waking up. If you just deployed or haven't used the app in 15 minutes, Render puts the service to sleep. It will automatically wake up and connect in **1-2 minutes** (you can click/refresh again shortly).")
+
 # Main Grid: Left Column (Text Input Layer) | Right Column (Classification Output)
 layout_col1, layout_col2 = st.columns([6.7, 5.3], gap="large")
 
@@ -876,7 +880,7 @@ with layout_col1:
                     else:
                         st.error(f"⚠️ Error {response.status_code} occurred while communicating with the model server.")
                 except requests.exceptions.ConnectionError:
-                    st.error("🔌 Connection Failed: Backend server is offline. Please make sure the FastAPI app is running.")
+                    st.error("🔌 Connection Failed: Backend server is offline. (Note: If the backend is waking up from sleep on Render, it can take 1-2 minutes to spin up. Please wait a moment and try clicking predict again!)")
                     st.session_state.backend_status = "Offline"
                 except Exception as e:
                     st.error(f"🚨 Unexpected client error occurred: {str(e)}")
