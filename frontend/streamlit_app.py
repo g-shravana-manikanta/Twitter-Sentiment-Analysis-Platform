@@ -1,10 +1,18 @@
 import os
+import sys
 import time
 import requests
 import streamlit as st
+import joblib
+import numpy as np
+import nltk
 
-# Load backend URL from environment variables for flexible deployment
-BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8001")
+# Programmatically append the parent directory to python path for safe imports
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from app.preprocess import preprocess_text
 
 # Configure Page Layout and Metadata
 st.set_page_config(
@@ -30,13 +38,48 @@ def clear_interface():
     if "last_prediction" in st.session_state:
         del st.session_state.last_prediction
 
-# Dynamic health check on load
-if st.session_state.backend_status == "Not Checked":
+# Pre-download NLTK resources in Streamlit container at startup
+@st.cache_resource
+def download_nltk_resources():
     try:
-        r = requests.get(f"{BACKEND_URL}/health", timeout=5.0)
-        st.session_state.backend_status = "Online" if r.status_code == 200 else "Offline"
-    except Exception:
-        st.session_state.backend_status = "Offline"
+        nltk.data.find('corpora/stopwords')
+    except LookupError:
+        nltk.download('stopwords', quiet=True)
+    try:
+        nltk.data.find('corpora/wordnet')
+    except LookupError:
+        nltk.download('wordnet', quiet=True)
+    try:
+        nltk.data.find('corpora/omw-1.4')
+    except LookupError:
+        nltk.download('omw-1.4', quiet=True)
+    try:
+        nltk.data.find('tokenizers/punkt')
+    except LookupError:
+        nltk.download('punkt', quiet=True)
+
+# Load the classifier and vectorizer models directly in Streamlit memory
+@st.cache_resource
+def load_local_classifier():
+    download_nltk_resources()
+    
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    model_path = os.path.join(base_dir, "model", "sentiment_model.pkl")
+    vectorizer_path = os.path.join(base_dir, "model", "vectorizer.pkl")
+    
+    if not os.path.exists(model_path) or not os.path.exists(vectorizer_path):
+        raise FileNotFoundError("Model artifacts not found.")
+        
+    model = joblib.load(model_path)
+    vectorizer = joblib.load(vectorizer_path)
+    return model, vectorizer
+
+# Try loading the local model on startup
+try:
+    local_model, local_vectorizer = load_local_classifier()
+    st.session_state.backend_status = "Online"
+except Exception as e:
+    st.session_state.backend_status = "Offline"
 
 # Custom Premium SentimentX Stylesheet (CSS)
 st.markdown(
@@ -773,10 +816,6 @@ st.markdown(
 # Anchor element for navigation
 st.markdown("<div id='analyzer' style='height: 40px;'></div>", unsafe_allow_html=True)
 
-# Warn user if backend API is offline (e.g. sleeping on Render Free tier)
-if st.session_state.backend_status == "Offline":
-    st.warning("⚡ **Connecting to Backend API...** The backend is currently offline or waking up. If you just deployed or haven't used the app in 15 minutes, Render puts the service to sleep. It will automatically wake up and connect in **1-2 minutes** (you can click/refresh again shortly).")
-
 # Main Grid: Left Column (Text Input Layer) | Right Column (Classification Output)
 layout_col1, layout_col2 = st.columns([6.7, 5.3], gap="large")
 
@@ -839,7 +878,7 @@ with layout_col1:
             # Styled Predict Button (Primary)
             predict_clicked = st.button("✨ Predict Sentiment", type="primary", use_container_width=True)
             
-    # Call predict endpoint if button is clicked
+    # Call predict endpoint locally if button is clicked
     if predict_clicked:
         if not tweet_text.strip():
             st.error("⚠️ Input tweet cannot be empty. Please type or click an example.")
@@ -847,43 +886,57 @@ with layout_col1:
             with st.spinner("Classifying sentiment..."):
                 t_start = time.perf_counter()
                 try:
-                    payload = {"tweet": tweet_text}
-                    response = requests.post(
-                        f"{BACKEND_URL}/predict",
-                        json=payload,
-                        timeout=5
-                    )
+                    # Clean the input tweet
+                    cleaned_text = preprocess_text(tweet_text)
+                    
+                    if not cleaned_text.strip():
+                        prediction = "Negative"
+                        confidence_score = 0.50
+                    else:
+                        # Vectorize text features
+                        vectorized_text = local_vectorizer.transform([cleaned_text])
+                        
+                        # Classify with SVM model
+                        prediction_class = int(local_model.predict(vectorized_text)[0])
+                        prediction = "Positive" if prediction_class == 1 else "Negative"
+                        
+                        # Calculate Sigmoid confidence mapping
+                        if hasattr(local_model, "decision_function"):
+                            decision_val = local_model.decision_function(vectorized_text)[0]
+                            probability = 1.0 / (1.0 + np.exp(-decision_val))
+                            if prediction_class == 1:
+                                confidence_score = float(probability)
+                            else:
+                                confidence_score = float(1.0 - probability)
+                        else:
+                            confidence_score = 1.0
+                        
+                        confidence_score = round(confidence_score, 2)
+                        
                     t_duration = round((time.perf_counter() - t_start) * 1000)
                     t_stamp = time.strftime("%I:%M:%S %p")
                     
-                    if response.status_code == 200:
-                        res_data = response.json()
-                        prediction = res_data["prediction"]
-                        confidence_score = res_data["confidence_score"]
-                        
-                        pred_record = {
-                            "tweet": tweet_text,
+                    pred_record = {
+                        "tweet": tweet_text,
+                        "prediction": prediction,
+                        "confidence_score": confidence_score,
+                        "response_time_ms": t_duration,
+                        "timestamp": t_stamp,
+                        "raw_json": {
                             "prediction": prediction,
                             "confidence_score": confidence_score,
-                            "response_time_ms": t_duration,
-                            "timestamp": t_stamp,
-                            "raw_json": res_data
+                            "inference_ms": t_duration
                         }
-                        st.session_state.last_prediction = pred_record
-                        
-                        # Save to session history queue
-                        st.session_state.history.insert(0, pred_record)
-                        st.session_state.history = st.session_state.history[:5]
-                        
-                        st.session_state.backend_status = "Online"
-                        st.rerun()
-                    else:
-                        st.error(f"⚠️ Error {response.status_code} occurred while communicating with the model server.")
-                except requests.exceptions.ConnectionError:
-                    st.error("🔌 Connection Failed: Backend server is offline. (Note: If the backend is waking up from sleep on Render, it can take 1-2 minutes to spin up. Please wait a moment and try clicking predict again!)")
-                    st.session_state.backend_status = "Offline"
+                    }
+                    st.session_state.last_prediction = pred_record
+                    
+                    # Save to session history queue
+                    st.session_state.history.insert(0, pred_record)
+                    st.session_state.history = st.session_state.history[:5]
+                    st.session_state.backend_status = "Online"
+                    st.rerun()
                 except Exception as e:
-                    st.error(f"🚨 Unexpected client error occurred: {str(e)}")
+                    st.error(f"🚨 ML Engine Prediction Error: {str(e)}")
 
 # Right Column - Output cards and collapsible parameters
 with layout_col2:
@@ -915,7 +968,7 @@ with layout_col2:
         request_metadata_json = {
             "text_length": len(pred["tweet"].split()),
             "vectorizer": "TfidfVectorizer",
-            "classifier": "LinearSVC (Pickled)",
+            "classifier": "LinearSVC (Local Cache)",
             "predicted_label": pred_label,
             "confidence": score,
             "latency_ms": latency,
@@ -942,7 +995,7 @@ with layout_col2:
                 </div>
                 <div class="result-card-footer" style="border-color: {border_color}; color: {text_color};">
                     <div>Metric Type: <span style="font-weight: 700;">Estimated SVM Certainty</span></div>
-                    <div style="text-align: right;">API Response Time: <span style="font-weight: 700;">{latency} ms</span></div>
+                    <div style="text-align: right;">Inference Duration: <span style="font-weight: 700;">{latency} ms</span></div>
                 </div>
             </div>
             """,
