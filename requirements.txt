@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+streamlit
+scikit-learn
+pandas
+numpy
+nltk
+joblib
+pydantic
+requests
+python-multipart
+python-dotenv
+matplotlib
+wordcloud
+tqdm
+seaborn

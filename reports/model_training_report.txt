@@ -1,0 +1,52 @@
+ Twitter Sentiment Analysis - Model Training Report
+
+Generated on: 2026-07-30 22:37:58
+
+ 1. Dataset Summary
+- Number of Raw Rows: 1,600,000
+- Number of Raw Columns: 6
+- Number of Positive Tweets: 729,886
+- Number of Negative Tweets: 743,297
+- Number of Duplicate Rows Removed: 0
+- Number of Missing Values: 0
+
+ 2. Preprocessing Summary
+- Cleaning Steps Performed:
+  - Lowercasing raw text content
+  - Stripping website URLs and links
+  - Removing HTML entities and markup tags
+  - Removing Twitter handles (@mentions)
+  - Stripping hashtags (symbols)
+  - Filtering punctuation and numerical values
+  - Word tokenization and standard English stopword filtering
+  - WordNet Lemmatization
+- Total Vocabulary Size: 50,000
+- TF-IDF Feature Count: 50,000
+
+ 3. Model Comparison
+| Model | Accuracy | Precision | Recall | F1 Score | Training Time |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| Multinomial Naive Bayes | 0.7766 | 0.7777 | 0.7687 | 0.7732 | 0.24s |
+| Logistic Regression | 0.7952 | 0.7854 | 0.8073 | 0.7962 | 2.39s |
+| Linear SVM (Best) | 0.7979 | 0.7870 | 0.8119 | 0.7992 | 15.62s |
+
+ 4. Final Selected Model
+The classifier Linear SVM was automatically selected for deployment based on the highest F1-score.
+- Rationale: Excellent classification metrics on highly sparse vectors, minimal memory requirements when serialized, and sub-millisecond scoring speed making it extremely deployment-friendly.
+
+ 5. Files Generated
+- `model/sentiment_model.pkl`
+- `model/vectorizer.pkl`
+- `dataset/cleaned_sentiment140.csv`
+- `reports/model_training_report.md`
+- `reports/model_training_report.txt`
+
+ 6. Deployment Readiness
+[X] Dataset Loaded
+[X] Dataset Cleaned
+[X] Features Generated
+[X] Model Trained
+[X] Best Model Selected
+[X] Model Saved
+[X] Vectorizer Saved
+[X] Ready for FastAPI Deployment
