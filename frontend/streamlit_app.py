@@ -1,18 +1,9 @@
 import os
 import sys
 import time
+import requests
 import streamlit as st
-import joblib
-import numpy as np
-import nltk
 import html
-
-# Programmatically append the parent directory to python path for safe imports
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
-from app.preprocess import preprocess_text
 
 # Configure Page Layout and Metadata
 st.set_page_config(
@@ -20,6 +11,9 @@ st.set_page_config(
     page_icon="frontend/favicon.png",
     layout="wide"
 )
+
+# Backend API Configuration
+BACKEND_URL = "https://twitter-sentiment-api-dcco.onrender.com"
 
 # Initialize Session States
 if "tweet_value" not in st.session_state:
@@ -38,53 +32,20 @@ def clear_interface():
     if "last_prediction" in st.session_state:
         del st.session_state.last_prediction
 
-# Pre-download NLTK resources in Streamlit container at startup
-@st.cache_resource
-def download_nltk_resources():
+# Check the health status of the FastAPI backend
+def check_backend_health():
     try:
-        nltk.data.find('corpora/stopwords')
-    except LookupError:
-        nltk.download('stopwords', quiet=True)
-    try:
-        nltk.data.find('corpora/wordnet')
-    except LookupError:
-        nltk.download('wordnet', quiet=True)
-    try:
-        nltk.data.find('corpora/omw-1.4')
-    except LookupError:
-        nltk.download('omw-1.4', quiet=True)
-    try:
-        nltk.data.find('tokenizers/punkt')
-    except LookupError:
-        nltk.download('punkt', quiet=True)
+        response = requests.get(f"{BACKEND_URL}/health", timeout=3.0)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "healthy":
+                return "Online"
+        return "Offline"
+    except Exception:
+        return "Offline"
 
-# Load the classifier and vectorizer models directly in Streamlit memory
-@st.cache_resource
-def load_local_classifier():
-    download_nltk_resources()
-    
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    model_path = os.path.join(base_dir, "model", "sentiment_model.pkl")
-    vectorizer_path = os.path.join(base_dir, "model", "vectorizer.pkl")
-    
-    if not os.path.exists(model_path) or not os.path.exists(vectorizer_path):
-        raise FileNotFoundError("Model artifacts not found.")
-        
-    model = joblib.load(model_path)
-    vectorizer = joblib.load(vectorizer_path)
-    return model, vectorizer
-
-# Initialize variables globally to prevent NameErrors if loading fails
-local_model = None
-local_vectorizer = None
-
-# Try loading the local model on startup
-try:
-    local_model, local_vectorizer = load_local_classifier()
-    st.session_state.backend_status = "Online"
-except Exception as e:
-    st.session_state.backend_status = "Offline"
-    st.error(f"⚠️ Failed to load local ML Engine: {str(e)}")
+# Query the API status on load
+st.session_state.backend_status = check_backend_health()
 
 # Custom Premium SentimentX Stylesheet (CSS)
 st.markdown(
@@ -752,7 +713,7 @@ st.markdown(
 
 # --- HEADER COMPONENT ---
 header_status_color = "#12B76A" if st.session_state.backend_status == "Online" else "#F04438"
-header_status_text = "Local Engine Ready" if st.session_state.backend_status == "Online" else "Engine Offline"
+header_status_text = "API Online" if st.session_state.backend_status == "Online" else "API Offline"
 
 # Render the Header using columns
 h_col1, h_col2 = st.columns([8.2, 3.8])
@@ -778,7 +739,7 @@ with h_col1:
     )
 
 with h_col2:
-    # Health status badge only
+    # Health status badge
     st.markdown(
         f"""
         <div class="header-status" style="margin-top: 2px;">
@@ -811,7 +772,7 @@ st.markdown(
             <span class="stats-divider">|</span>
             <span>ACCURACY: <strong>79.79%</strong></span>
             <span class="stats-divider">|</span>
-            <span>LATENCY: <strong>&lt;10MS</strong></span>
+            <span>HOST: <strong>FASTAPI BACKEND</strong></span>
         </div>
     </div>
     """,
@@ -882,67 +843,58 @@ with layout_col1:
         # Styled Predict Button (Primary)
         predict_clicked = st.button("✨ Predict Sentiment", type="primary", use_container_width=True)
             
-    # Call predict endpoint locally if button is clicked
+    # Call predict endpoint of FastAPI backend if button is clicked
     if predict_clicked:
         if not tweet_text.strip():
             st.error("⚠️ Input tweet cannot be empty. Please type or click an example.")
-        elif local_model is None or local_vectorizer is None:
-            st.error("🚨 ML Engine is Offline. The model artifacts failed to load on startup. Please check the logs in the lower-right menu.")
         else:
-            with st.spinner("Classifying sentiment..."):
-                t_start = time.perf_counter()
-                try:
-                    # Clean the input tweet
-                    cleaned_text = preprocess_text(tweet_text)
-                    
-                    if not cleaned_text.strip():
-                        prediction = "Negative"
-                        confidence_score = 0.50
-                    else:
-                        # Vectorize text features
-                        vectorized_text = local_vectorizer.transform([cleaned_text])
+            # Check length limit before sending request
+            if len(tweet_text) > 280:
+                st.error("⚠️ Input length error: Tweet exceeds the maximum length of 280 characters.")
+            else:
+                with st.spinner("Calling API backend..."):
+                    t_start = time.perf_counter()
+                    try:
+                        response = requests.post(
+                            f"{BACKEND_URL}/predict",
+                            json={"tweet": tweet_text},
+                            timeout=10.0
+                        )
                         
-                        # Classify with SVM model
-                        prediction_class = int(local_model.predict(vectorized_text)[0])
-                        prediction = "Positive" if prediction_class == 1 else "Negative"
-                        
-                        # Calculate Sigmoid confidence mapping
-                        if hasattr(local_model, "decision_function"):
-                            decision_val = local_model.decision_function(vectorized_text)[0]
-                            probability = 1.0 / (1.0 + np.exp(-decision_val))
-                            if prediction_class == 1:
-                                confidence_score = float(probability)
-                            else:
-                                confidence_score = float(1.0 - probability)
+                        if response.status_code == 200:
+                            data = response.json()
+                            prediction = data["prediction"]
+                            confidence_score = data["confidence_score"]
+                            t_duration = round((time.perf_counter() - t_start) * 1000)
+                            t_stamp = time.strftime("%I:%M:%S %p")
+                            
+                            pred_record = {
+                                "tweet": tweet_text,
+                                "prediction": prediction,
+                                "confidence_score": confidence_score,
+                                "response_time_ms": t_duration,
+                                "timestamp": t_stamp,
+                                "raw_json": {
+                                    "prediction": prediction,
+                                    "confidence_score": confidence_score,
+                                    "network_rtt_ms": t_duration
+                                }
+                            }
+                            st.session_state.last_prediction = pred_record
+                            
+                            # Save to session history queue
+                            st.session_state.history.insert(0, pred_record)
+                            st.session_state.history = st.session_state.history[:5]
+                            st.session_state.backend_status = "Online"
+                            st.rerun()
+                        elif response.status_code == 422:
+                            st.error("⚠️ Input validation error: Tweet must be between 1 and 280 characters.")
                         else:
-                            confidence_score = 1.0
-                        
-                        confidence_score = round(confidence_score, 2)
-                        
-                    t_duration = round((time.perf_counter() - t_start) * 1000)
-                    t_stamp = time.strftime("%I:%M:%S %p")
-                    
-                    pred_record = {
-                        "tweet": tweet_text,
-                        "prediction": prediction,
-                        "confidence_score": confidence_score,
-                        "response_time_ms": t_duration,
-                        "timestamp": t_stamp,
-                        "raw_json": {
-                            "prediction": prediction,
-                            "confidence_score": confidence_score,
-                            "inference_ms": t_duration
-                        }
-                    }
-                    st.session_state.last_prediction = pred_record
-                    
-                    # Save to session history queue
-                    st.session_state.history.insert(0, pred_record)
-                    st.session_state.history = st.session_state.history[:5]
-                    st.session_state.backend_status = "Online"
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"🚨 ML Engine Prediction Error: {str(e)}")
+                            st.error(f"🚨 API Server returned status code {response.status_code}.")
+                    except requests.exceptions.Timeout:
+                        st.error("⏰ Connection timed out. The backend server on Render is waking up from its free tier sleep state. Please wait 1-2 minutes and try again.")
+                    except Exception as e:
+                        st.error(f"🚨 Failed to connect to API backend: {str(e)}")
 
 # Right Column - Output cards and collapsible parameters
 with layout_col2:
@@ -974,7 +926,7 @@ with layout_col2:
         request_metadata_json = {
             "text_length": len(pred["tweet"].split()),
             "vectorizer": "TfidfVectorizer",
-            "classifier": "LinearSVC (Local Cache)",
+            "classifier": "LinearSVC (API Engine)",
             "predicted_label": pred_label,
             "confidence": score,
             "latency_ms": latency,
@@ -1023,7 +975,7 @@ with layout_col2:
                     <path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 5.5Z"/>
                     <path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1Z"/>
                 </svg>
-                <h3 class="awaiting-title">Awaiting input</h3>
+                <h3 class="awaiting-title">Awaiting Input</h3>
                 <p class="awaiting-desc">Write or pick a tweet, then run the classifier to see its polarity here.</p>
             </div>
             """,
