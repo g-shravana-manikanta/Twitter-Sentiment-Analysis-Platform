@@ -106,6 +106,12 @@ After evaluating multiple models, the **Linear SVM** classifier was selected for
    pip install -r requirements.txt
    ```
 
+### Running Automated Tests
+To run the preprocessing unit tests and the FastAPI TestClient contract tests, execute:
+```bash
+python -m pytest
+```
+
 ---
 
 ### Running Locally
@@ -180,5 +186,12 @@ To isolate dependencies and avoid deployment errors:
 This application is ready for instant deployment to platforms like **Render**, **Railway**, or **AWS ECS**.
 
 ### Configuration Variables
-To allow the frontend to communicate with the backend dynamically across environments, configure the following environment variable in your frontend container:
-*   `BACKEND_URL`: Set this to your deployed FastAPI backend URL (e.g., `https://sentiment-api.onrender.com`). If left empty, it defaults to the local server `http://127.0.0.1:8001`.
+To allow the frontend and backend to communicate securely across environments:
+*   `BACKEND_URL`: Set this on the Streamlit frontend to your deployed FastAPI backend URL (e.g., `https://twitter-sentiment-api-dcco.onrender.com`).
+*   `ALLOWED_ORIGINS`: Set this on the FastAPI backend on Render to your deployed Streamlit frontend URL (e.g., `https://twitter-sentiment-analysis-platform.streamlit.app`) to authorize incoming cross-origin CORS requests.
+
+---
+
+## ⚙️ CI/CD Integration
+This repository integrates a **GitHub Actions CI/CD Pipeline** ([.github/workflows/ci.yml](file:///.github/workflows/ci.yml)) which automatically builds the environment and executes the preprocessing unit tests and FastAPI contract tests on every push or pull request to the `main` branch.
+
