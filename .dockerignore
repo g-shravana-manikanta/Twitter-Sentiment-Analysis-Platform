@@ -1,0 +1,8 @@
+.venv/
+venv/
+dataset/
+notebook/.ipynb_checkpoints/
+__pycache__/
+*.pyc
+.git/
+C:\Users\Manikanta\.gemini\antigravity-ide\

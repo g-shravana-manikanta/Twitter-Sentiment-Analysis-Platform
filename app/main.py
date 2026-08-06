@@ -28,6 +28,7 @@ async def lifespan(app: FastAPI):
         predictor.load_model()
     except Exception as e:
         logger.critical(f"Server startup failed during model loading: {str(e)}", exc_info=True)
+        raise e
     yield
     # Shutdown Lifecycle
     logger.info("Server shutting down.")

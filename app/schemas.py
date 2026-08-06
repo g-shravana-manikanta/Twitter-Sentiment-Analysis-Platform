@@ -4,6 +4,7 @@ class SentimentRequest(BaseModel):
     tweet: str = Field(
         ..., 
         min_length=1, 
+        max_length=280,
         description="The tweet text to classify"
     )
 

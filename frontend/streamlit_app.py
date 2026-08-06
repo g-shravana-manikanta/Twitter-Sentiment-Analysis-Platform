@@ -6,6 +6,7 @@ import streamlit as st
 import joblib
 import numpy as np
 import nltk
+import html
 
 # Programmatically append the parent directory to python path for safe imports
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -747,7 +748,7 @@ st.markdown(
 
 # --- HEADER COMPONENT ---
 header_status_color = "#12B76A" if st.session_state.backend_status == "Online" else "#F04438"
-header_status_text = "Model Online" if st.session_state.backend_status == "Online" else "Model Offline"
+header_status_text = "Local Engine Ready" if st.session_state.backend_status == "Online" else "Engine Offline"
 
 # Render the Header using columns
 h_col1, h_col2 = st.columns([8.2, 3.8])
@@ -1089,7 +1090,7 @@ st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 if st.session_state.history:
     for item in st.session_state.history:
         label = item["prediction"]
-        text_preview = item["tweet"]
+        escaped_text = html.escape(item["tweet"])
         
         # Format tags matching React history cards
         if label == "Positive":
@@ -1106,7 +1107,7 @@ if st.session_state.history:
         st.markdown(
             f"""
             <div class="history-item">
-                <span class="history-text">"{text_preview}"</span>
+                <span class="history-text">"{escaped_text}"</span>
                 <div class="history-meta">
                     <span class="history-timestamp">{item.get('timestamp', '')} &middot; Latency: {item['response_time_ms']} ms</span>
                     <span class="history-badge" style="background-color: {bg_color}; color: {text_color}; border: 1px solid {border_color};">
