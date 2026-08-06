@@ -74,12 +74,17 @@ def load_local_classifier():
     vectorizer = joblib.load(vectorizer_path)
     return model, vectorizer
 
+# Initialize variables globally to prevent NameErrors if loading fails
+local_model = None
+local_vectorizer = None
+
 # Try loading the local model on startup
 try:
     local_model, local_vectorizer = load_local_classifier()
     st.session_state.backend_status = "Online"
 except Exception as e:
     st.session_state.backend_status = "Offline"
+    st.error(f"⚠️ Failed to load local ML Engine: {str(e)}")
 
 # Custom Premium SentimentX Stylesheet (CSS)
 st.markdown(
@@ -881,6 +886,8 @@ with layout_col1:
     if predict_clicked:
         if not tweet_text.strip():
             st.error("⚠️ Input tweet cannot be empty. Please type or click an example.")
+        elif local_model is None or local_vectorizer is None:
+            st.error("🚨 ML Engine is Offline. The model artifacts failed to load on startup. Please check the logs in the lower-right menu.")
         else:
             with st.spinner("Classifying sentiment..."):
                 t_start = time.perf_counter()
