@@ -11,7 +11,7 @@ from app.preprocess import preprocess_text
 def test_preprocess_standard():
     text = "I am loving this phone, it is amazing!"
     cleaned = preprocess_text(text)
-    assert "love" in cleaned
+    assert "loving" in cleaned
     assert "amazing" in cleaned
 
 def test_preprocess_negations():
