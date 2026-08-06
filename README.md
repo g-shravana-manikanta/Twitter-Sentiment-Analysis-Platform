@@ -1,5 +1,9 @@
 # Twitter Sentiment Analysis Platform
 
+🔗 **Live Demo:** [twitter-sentiment-analysis-platform.streamlit.app](https://twitter-sentiment-analysis-platform.streamlit.app/)
+
+> ⚠️ **Note:** The live demo is hosted on **Streamlit Community Cloud (free tier)**, which automatically puts apps to sleep after a period of inactivity. If you see a _"This app is sleeping"_ screen, simply click **"Yes, get this app back up!"** — the app will load within 20–30 seconds. This is expected platform behavior and not an application error.
+
 A production-ready, full-stack Machine Learning application that classifies the sentiment of tweets in real-time. This project features a high-performance **FastAPI** backend serving a **Linear Support Vector Machine (Linear SVM)** model trained on the **Sentiment140 dataset (1.6 Million tweets)**, integrated with an intuitive, premium **Streamlit** frontend dashboard.
 
 ---
