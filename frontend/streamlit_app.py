@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-import requests
 import streamlit as st
 import joblib
 import numpy as np

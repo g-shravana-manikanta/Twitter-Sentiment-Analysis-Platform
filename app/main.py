@@ -10,10 +10,10 @@ from app.config import ALLOWED_ORIGINS
 from app.schemas import SentimentRequest, SentimentResponse, HealthResponse
 from app.predictor import predictor
 
-# Configure standard python logging
+# Configure standard python logging with timestamps
 logging.basicConfig(
     level=logging.INFO,
-    format="%(levelname)s - %(message)s"
+    format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("app")
 
