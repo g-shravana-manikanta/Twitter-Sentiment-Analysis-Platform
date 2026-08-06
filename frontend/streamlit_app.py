@@ -859,24 +859,23 @@ with layout_col1:
     
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     
-    # Bottom actions row: Character Counter on left, Clear/Predict on right
-    actions_col1, actions_col2 = st.columns([5.5, 6.5])
+    # Bottom actions row: Character Counter, Clear and Predict buttons side-by-side
+    actions_col1, actions_col2, actions_col3 = st.columns([5.0, 2.8, 4.2])
     
     with actions_col1:
         char_len = len(tweet_text)
         if char_len > 280:
-            st.markdown(f'<span class="char-indicator-meta char-counter-over">Character Count: {char_len} / 280</span>', unsafe_allow_html=True)
+            st.markdown(f'<span class="char-indicator-meta char-counter-over" style="line-height: 42px;">Character Count: {char_len} / 280</span>', unsafe_allow_html=True)
         else:
-            st.markdown(f'<span class="char-indicator-meta">Character Count: {char_len} / 280</span>', unsafe_allow_html=True)
+            st.markdown(f'<span class="char-indicator-meta" style="line-height: 42px;">Character Count: {char_len} / 280</span>', unsafe_allow_html=True)
             
     with actions_col2:
-        btn_clear_col, btn_predict_col = st.columns([4, 8])
-        with btn_clear_col:
-            # Styled Clear Button
-            st.button("🧹 Clear", on_click=clear_interface, use_container_width=True)
-        with btn_predict_col:
-            # Styled Predict Button (Primary)
-            predict_clicked = st.button("✨ Predict Sentiment", type="primary", use_container_width=True)
+        # Styled Clear Button
+        st.button("🧹 Clear", on_click=clear_interface, use_container_width=True)
+        
+    with actions_col3:
+        # Styled Predict Button (Primary)
+        predict_clicked = st.button("✨ Predict Sentiment", type="primary", use_container_width=True)
             
     # Call predict endpoint locally if button is clicked
     if predict_clicked:
